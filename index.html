@@ -12,7 +12,7 @@ h1{text-align:center;margin:4px 0 2px;font-size:clamp(30px,8vw,46px);letter-spac
 .sub{text-align:center;color:#a9c2b8;margin-bottom:18px}
 .card{background:#12352d;border:1px solid #2a574c;border-radius:22px;padding:14px;box-shadow:0 14px 35px #0005}
 #grid{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;user-select:none;touch-action:none;aspect-ratio:1}
-.cell{display:flex;align-items:center;justify-content:center;background:#e9f0ed;color:#17332b;border-radius:6px;font-weight:800;font-size:clamp(14px,4.5vw,25px);cursor:pointer;transition:.12s}
+.cell{display:flex;align-items:center;justify-content:center;background:#e9f0ed;color:#17332b;border-radius:6px;font-weight:800;font-size:clamp(14px,4.5vw,25px);cursor:pointer;transition:.08s}
 .cell.selected{background:#75c99e;color:#082219;transform:scale(.96)}
 .cell.found{background:#f1c75b;color:#17240d}
 .words{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:15px}
@@ -38,14 +38,9 @@ button:active{transform:scale(.97)}
 </main>
 <script>
 const SIZE=12;
-const BANK=[
-"JOURNEY","MOUNTAIN","SUNSHINE","OCEAN","GARDEN","ROCKET","CASTLE","THUNDER",
-"FOREST","ISLAND","PIRATE","DRAGON","BICYCLE","MUSIC","COFFEE","WINTER",
-"SUMMER","AUTUMN","RIVER","PLANET","GUITAR","COOKIE","TIGER","EAGLE",
-"RAINBOW","FRIEND","FAMILY","PUZZLE","GALAXY","ADVENTURE","CANDLE","BRIDGE"
-];
+const BANK=["JOURNEY","MOUNTAIN","SUNSHINE","OCEAN","GARDEN","ROCKET","CASTLE","THUNDER","FOREST","ISLAND","PIRATE","DRAGON","BICYCLE","MUSIC","COFFEE","WINTER","SUMMER","AUTUMN","RIVER","PLANET","GUITAR","COOKIE","TIGER","EAGLE","RAINBOW","FRIEND","FAMILY","PUZZLE","GALAXY","ADVENTURE","CANDLE","BRIDGE"];
 const dirs=[[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
-let board,placed,dragStart=null,dragging=false;
+let board,placed,dragStart=null,dragging=false,lastCell=null;
 
 function newGame(){
  board=Array.from({length:SIZE},()=>Array(SIZE).fill(""));
@@ -59,34 +54,33 @@ function newGame(){
      const er=r+dr*(word.length-1),ec=c+dc*(word.length-1);
      if(er<0||er>=SIZE||ec<0||ec>=SIZE)continue;
      let good=true;
-     for(let i=0;i<word.length;i++){
-       const x=board[r+dr*i][c+dc*i];
-       if(x && x!==word[i]){good=false;break}
-     }
+     for(let i=0;i<word.length;i++){const x=board[r+dr*i][c+dc*i];if(x&&x!==word[i]){good=false;break}}
      if(!good)continue;
      for(let i=0;i<word.length;i++)board[r+dr*i][c+dc*i]=word[i];
-     placed.push({word,start:[r,c],end:[er,ec],found:false});
-     ok=true;
+     placed.push({word,found:false});ok=true;
    }
    if(placed.length===8)break;
  }
  const letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
- for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)
-   if(!board[r][c])board[r][c]=letters[Math.floor(Math.random()*letters.length)];
+ for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)if(!board[r][c])board[r][c]=letters[Math.floor(Math.random()*letters.length)];
  render();
 }
 function render(){
- const grid=document.getElementById("grid"), list=document.getElementById("words");
- grid.innerHTML=""; list.innerHTML="";
+ const grid=document.getElementById("grid"),list=document.getElementById("words");
+ grid.innerHTML="";list.innerHTML="";
  for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
-   const el=document.createElement("div");el.className="cell";el.textContent=board[r][c];
-   el.dataset.r=r;el.dataset.c=c;grid.appendChild(el);
+   const el=document.createElement("div");el.className="cell";el.textContent=board[r][c];el.dataset.r=r;el.dataset.c=c;grid.appendChild(el);
  }
  placed.forEach((p,i)=>{const el=document.createElement("div");el.className="word"+(p.found?" found":"");el.id="word"+i;el.textContent=p.word;list.appendChild(el)});
  document.getElementById("status").textContent="";
 }
-function cellAt(e){
- const target=e.target.closest(".cell");return target?{r:+target.dataset.r,c:+target.dataset.c,el:target}:null;
+function pointToCell(clientX,clientY){
+ const rect=grid.getBoundingClientRect();
+ const x=clientX-rect.left,y=clientY-rect.top;
+ if(x<0||y<0||x>rect.width||y>rect.height)return null;
+ const col=Math.min(SIZE-1,Math.floor(x/rect.width*SIZE));
+ const row=Math.min(SIZE-1,Math.floor(y/rect.height*SIZE));
+ return {r:row,c:col};
 }
 function line(a,b){
  const dr=Math.sign(b.r-a.r),dc=Math.sign(b.c-a.c);
@@ -96,11 +90,11 @@ function line(a,b){
 }
 function clearSelected(){document.querySelectorAll(".cell.selected").forEach(x=>x.classList.remove("selected"))}
 function select(a,b){
- clearSelected();line(a,b).forEach(p=>document.querySelector('.cell[data-r="'+p.r+'"][data-c="'+p.c+'"]')?.classList.add("selected"));
+ clearSelected();
+ line(a,b).forEach(p=>document.querySelector('.cell[data-r="'+p.r+'"][data-c="'+p.c+'"]')?.classList.add("selected"));
 }
 function check(a,b){
- const cells=line(a,b), s=cells.map(p=>board[p.r][p.c]).join("");
- const rev=s.split("").reverse().join("");
+ const cells=line(a,b),s=cells.map(p=>board[p.r][p.c]).join(""),rev=s.split("").reverse().join("");
  const p=placed.find(x=>!x.found&&(x.word===s||x.word===rev));
  if(!p){clearSelected();return}
  p.found=true;
@@ -109,11 +103,23 @@ function check(a,b){
  const count=placed.filter(x=>x.found).length;
  document.getElementById("status").textContent=count===8?"🎉 You found them all!":"Found "+p.word+" — "+count+"/8";
 }
-const grid=document.getElementById("grid");
-grid.addEventListener("pointerdown",e=>{const p=cellAt(e);if(!p)return;dragging=true;dragStart=p;grid.setPointerCapture(e.pointerId);select(p,p)});
-grid.addEventListener("pointermove",e=>{if(!dragging)return;const p=cellAt(e);if(p)select(dragStart,p)});
-grid.addEventListener("pointerup",e=>{if(!dragging)return;const p=cellAt(e);dragging=false;if(p)check(dragStart,p);else clearSelected()});
-grid.addEventListener("pointercancel",()=>{dragging=false;clearSelected()});
+grid.addEventListener("pointerdown",e=>{
+ const p=pointToCell(e.clientX,e.clientY);if(!p)return;
+ dragging=true;dragStart=p;lastCell=p;grid.setPointerCapture(e.pointerId);select(p,p);e.preventDefault();
+});
+grid.addEventListener("pointermove",e=>{
+ if(!dragging)return;
+ const p=pointToCell(e.clientX,e.clientY);if(!p)return;
+ if(!lastCell||p.r!==lastCell.r||p.c!==lastCell.c){lastCell=p;select(dragStart,p)}
+ e.preventDefault();
+});
+grid.addEventListener("pointerup",e=>{
+ if(!dragging)return;
+ const p=pointToCell(e.clientX,e.clientY)||lastCell;dragging=false;lastCell=null;
+ if(p)check(dragStart,p);else clearSelected();
+ e.preventDefault();
+});
+grid.addEventListener("pointercancel",()=>{dragging=false;lastCell=null;clearSelected()});
 document.getElementById("newGame").addEventListener("click",newGame);
 newGame();
 </script>
