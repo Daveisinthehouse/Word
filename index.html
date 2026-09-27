@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Word Search</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:linear-gradient(145deg,#102a24,#071613);color:#f5f7f5;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;justify-content:center}
+.app{width:min(680px,100%);padding:22px 14px 30px}
+h1{text-align:center;margin:4px 0 2px;font-size:clamp(30px,8vw,46px);letter-spacing:.04em}
+.sub{text-align:center;color:#a9c2b8;margin-bottom:18px}
+.card{background:#12352d;border:1px solid #2a574c;border-radius:22px;padding:14px;box-shadow:0 14px 35px #0005}
+#grid{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;user-select:none;touch-action:none;aspect-ratio:1}
+.cell{display:flex;align-items:center;justify-content:center;background:#e9f0ed;color:#17332b;border-radius:6px;font-weight:800;font-size:clamp(14px,4.5vw,25px);cursor:pointer;transition:.12s}
+.cell.selected{background:#75c99e;color:#082219;transform:scale(.96)}
+.cell.found{background:#f1c75b;color:#17240d}
+.words{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:15px}
+.word{padding:10px 8px;text-align:center;background:#0c2822;border-radius:10px;font-weight:700;letter-spacing:.05em;color:#e5eee9}
+.word.found{text-decoration:line-through;color:#75c99e;opacity:.75}
+.status{text-align:center;min-height:28px;margin:14px 0 4px;font-weight:700}
+button{display:block;margin:14px auto 0;border:0;border-radius:999px;background:#75c99e;color:#082219;font-weight:900;font-size:17px;padding:13px 28px;cursor:pointer}
+button:active{transform:scale(.97)}
+.small{text-align:center;color:#87a99e;font-size:13px;margin-top:12px}
+</style>
+</head>
+<body>
+<main class="app">
+<h1>🔤 WORD SEARCH</h1>
+<div class="sub">Find all 8 hidden words</div>
+<section class="card">
+<div id="grid" aria-label="Word search grid"></div>
+<div id="words" class="words"></div>
+<div id="status" class="status"></div>
+<button id="newGame">New Game</button>
+<div class="small">Drag across the letters to select a word</div>
+</section>
+</main>
+<script>
+const SIZE=12;
+const BANK=[
+"JOURNEY","MOUNTAIN","SUNSHINE","OCEAN","GARDEN","ROCKET","CASTLE","THUNDER",
+"FOREST","ISLAND","PIRATE","DRAGON","BICYCLE","MUSIC","COFFEE","WINTER",
+"SUMMER","AUTUMN","RIVER","PLANET","GUITAR","COOKIE","TIGER","EAGLE",
+"RAINBOW","FRIEND","FAMILY","PUZZLE","GALAXY","ADVENTURE","CANDLE","BRIDGE"
+];
+const dirs=[[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+let board,placed,dragStart=null,dragging=false;
+
+function newGame(){
+ board=Array.from({length:SIZE},()=>Array(SIZE).fill(""));
+ placed=[];
+ const pool=[...BANK].sort(()=>Math.random()-.5);
+ for(const word of pool){
+   let ok=false;
+   for(let tries=0;tries<300&&!ok;tries++){
+     const [dr,dc]=dirs[Math.floor(Math.random()*dirs.length)];
+     const r=Math.floor(Math.random()*SIZE),c=Math.floor(Math.random()*SIZE);
+     const er=r+dr*(word.length-1),ec=c+dc*(word.length-1);
+     if(er<0||er>=SIZE||ec<0||ec>=SIZE)continue;
+     let good=true;
+     for(let i=0;i<word.length;i++){
+       const x=board[r+dr*i][c+dc*i];
+       if(x && x!==word[i]){good=false;break}
+     }
+     if(!good)continue;
+     for(let i=0;i<word.length;i++)board[r+dr*i][c+dc*i]=word[i];
+     placed.push({word,start:[r,c],end:[er,ec],found:false});
+     ok=true;
+   }
+   if(placed.length===8)break;
+ }
+ const letters="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+ for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++)
+   if(!board[r][c])board[r][c]=letters[Math.floor(Math.random()*letters.length)];
+ render();
+}
+function render(){
+ const grid=document.getElementById("grid"), list=document.getElementById("words");
+ grid.innerHTML=""; list.innerHTML="";
+ for(let r=0;r<SIZE;r++)for(let c=0;c<SIZE;c++){
+   const el=document.createElement("div");el.className="cell";el.textContent=board[r][c];
+   el.dataset.r=r;el.dataset.c=c;grid.appendChild(el);
+ }
+ placed.forEach((p,i)=>{const el=document.createElement("div");el.className="word"+(p.found?" found":"");el.id="word"+i;el.textContent=p.word;list.appendChild(el)});
+ document.getElementById("status").textContent="";
+}
+function cellAt(e){
+ const target=e.target.closest(".cell");return target?{r:+target.dataset.r,c:+target.dataset.c,el:target}:null;
+}
+function line(a,b){
+ const dr=Math.sign(b.r-a.r),dc=Math.sign(b.c-a.c);
+ if(dr!==0&&dc!==0&&Math.abs(b.r-a.r)!==Math.abs(b.c-a.c))return [];
+ const n=Math.max(Math.abs(b.r-a.r),Math.abs(b.c-a.c))+1;
+ return Array.from({length:n},(_,i)=>({r:a.r+dr*i,c:a.c+dc*i}));
+}
+function clearSelected(){document.querySelectorAll(".cell.selected").forEach(x=>x.classList.remove("selected"))}
+function select(a,b){
+ clearSelected();line(a,b).forEach(p=>document.querySelector('.cell[data-r="'+p.r+'"][data-c="'+p.c+'"]')?.classList.add("selected"));
+}
+function check(a,b){
+ const cells=line(a,b), s=cells.map(p=>board[p.r][p.c]).join("");
+ const rev=s.split("").reverse().join("");
+ const p=placed.find(x=>!x.found&&(x.word===s||x.word===rev));
+ if(!p){clearSelected();return}
+ p.found=true;
+ cells.forEach(q=>document.querySelector('.cell[data-r="'+q.r+'"][data-c="'+q.c+'"]')?.classList.add("found"));
+ placed.forEach((x,i)=>{if(x.found)document.getElementById("word"+i).classList.add("found")});
+ const count=placed.filter(x=>x.found).length;
+ document.getElementById("status").textContent=count===8?"🎉 You found them all!":"Found "+p.word+" — "+count+"/8";
+}
+const grid=document.getElementById("grid");
+grid.addEventListener("pointerdown",e=>{const p=cellAt(e);if(!p)return;dragging=true;dragStart=p;grid.setPointerCapture(e.pointerId);select(p,p)});
+grid.addEventListener("pointermove",e=>{if(!dragging)return;const p=cellAt(e);if(p)select(dragStart,p)});
+grid.addEventListener("pointerup",e=>{if(!dragging)return;const p=cellAt(e);dragging=false;if(p)check(dragStart,p);else clearSelected()});
+grid.addEventListener("pointercancel",()=>{dragging=false;clearSelected()});
+document.getElementById("newGame").addEventListener("click",newGame);
+newGame();
+</script>
+</body>
+</html>
